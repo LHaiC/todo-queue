@@ -1,0 +1,29 @@
+
+# Build artifacts
+/target/
+
+# Database files (local data)
+*.db
+*.db-shm
+*.db-wal
+*.txt
+
+# IDE and editor files
+.DS_Store
+*~
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Rust
+Cargo.lock
+
+# Systemd local copies (installed by install.sh)
+todo-queue.service
+todo-queue.timer
+
+# Backup files
+*.bak
+*.backup
