@@ -1,9 +1,13 @@
-use chrono::{DateTime, Utc};
+use crate::models::Task;
+use chrono::Utc;
 use colored::*;
-use crate::models::{Priority, Task};
 
 pub fn format_task(task: &Task, show_id: bool) -> String {
-    let id_str = if show_id { format!("[{}] ", task.id) } else { String::new() };
+    let id_str = if show_id {
+        format!("[{}] ", task.id)
+    } else {
+        String::new()
+    };
 
     let priority_icon = task.priority.as_str();
     let title = task.title.clone();
@@ -19,7 +23,11 @@ pub fn format_task(task: &Task, show_id: bool) -> String {
     }
 
     if !task.tags.is_empty() {
-        let tags: Vec<String> = task.tags.iter().map(|t| format!("#{}", t.green())).collect();
+        let tags: Vec<String> = task
+            .tags
+            .iter()
+            .map(|t| format!("#{}", t.green()))
+            .collect();
         parts.push(format!("   {}", tags.join(" ")));
     }
 
@@ -78,9 +86,17 @@ pub fn print_stats(tasks: &[Task]) {
     println!("\n{}", "📊 Statistics".bold());
     println!("{} Total: {}", "•".dimmed(), total);
     println!("{} Pending: {}", "•".dimmed(), pending.to_string().yellow());
-    println!("{} Completed: {}", "•".dimmed(), completed.to_string().green());
+    println!(
+        "{} Completed: {}",
+        "•".dimmed(),
+        completed.to_string().green()
+    );
     if overdue > 0 {
-        println!("{} Overdue: {}", "•".dimmed(), overdue.to_string().red().bold());
+        println!(
+            "{} Overdue: {}",
+            "•".dimmed(),
+            overdue.to_string().red().bold()
+        );
     }
     println!();
 }

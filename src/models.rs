@@ -19,6 +19,7 @@ impl Priority {
         }
     }
 
+    #[allow(dead_code)]
     pub fn weight(&self) -> u8 {
         match self {
             Priority::Low => 1,

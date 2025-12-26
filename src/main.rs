@@ -151,7 +151,8 @@ fn main() -> Result<()> {
                 created_at: Utc::now(),
                 due_at: parse_due_time(&due.unwrap_or_default())?,
                 completed_at: None,
-                tags: tags.map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
+                tags: tags
+                    .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
                     .unwrap_or_default(),
                 project,
                 estimated_minutes: estimate,
@@ -183,7 +184,7 @@ fn main() -> Result<()> {
                 println!("\n{}", ui::format_task(&task, false));
 
                 if task.is_overdue() {
-                    println!("\n⚠️  This task is overdue!", );
+                    println!("\n⚠️  This task is overdue!",);
                 }
                 println!("\nUse {} to complete this task", "todo done".cyan());
             } else {

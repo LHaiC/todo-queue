@@ -11,8 +11,7 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: PathBuf) -> Result<Self> {
-        let conn = Connection::open(path)
-            .context("Failed to open database")?;
+        let conn = Connection::open(path).context("Failed to open database")?;
 
         let db = Self { conn };
         db.init()?;
@@ -73,24 +72,32 @@ impl Database {
              FROM tasks WHERE id = ?1"
         )?;
 
-        let task = stmt.query_row(params![id], |row| {
-            Ok(Task {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                description: row.get(2)?,
-                priority: serde_json::from_str(&row.get::<_, String>(3)?).unwrap(),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-                due_at: row.get::<_, Option<String>>(5)?
-                    .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-                completed_at: row.get::<_, Option<String>>(6)?
-                    .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-                tags: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
-                project: row.get(8)?,
-                estimated_minutes: row.get(9)?,
+        let task = stmt
+            .query_row(params![id], |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    description: row.get(2)?,
+                    priority: serde_json::from_str(&row.get::<_, String>(3)?).unwrap(),
+                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
+                        .unwrap()
+                        .with_timezone(&Utc),
+                    due_at: row.get::<_, Option<String>>(5)?.map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
+                    }),
+                    completed_at: row.get::<_, Option<String>>(6)?.map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
+                    }),
+                    tags: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
+                    project: row.get(8)?,
+                    estimated_minutes: row.get(9)?,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(task)
     }
@@ -114,10 +121,16 @@ impl Database {
                 created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
                     .unwrap()
                     .with_timezone(&Utc),
-                due_at: row.get::<_, Option<String>>(5)?
-                    .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-                completed_at: row.get::<_, Option<String>>(6)?
-                    .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
+                due_at: row.get::<_, Option<String>>(5)?.map(|s| {
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
+                }),
+                completed_at: row.get::<_, Option<String>>(6)?.map(|s| {
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
+                }),
                 tags: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
                 project: row.get(8)?,
                 estimated_minutes: row.get(9)?,
@@ -134,24 +147,32 @@ impl Database {
              ORDER BY priority DESC, due_at ASC, created_at ASC LIMIT 1"
         )?;
 
-        let task = stmt.query_row([], |row| {
-            Ok(Task {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                description: row.get(2)?,
-                priority: serde_json::from_str(&row.get::<_, String>(3)?).unwrap(),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-                due_at: row.get::<_, Option<String>>(5)?
-                    .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-                completed_at: row.get::<_, Option<String>>(6)?
-                    .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-                tags: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
-                project: row.get(8)?,
-                estimated_minutes: row.get(9)?,
+        let task = stmt
+            .query_row([], |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    description: row.get(2)?,
+                    priority: serde_json::from_str(&row.get::<_, String>(3)?).unwrap(),
+                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
+                        .unwrap()
+                        .with_timezone(&Utc),
+                    due_at: row.get::<_, Option<String>>(5)?.map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
+                    }),
+                    completed_at: row.get::<_, Option<String>>(6)?.map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
+                    }),
+                    tags: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
+                    project: row.get(8)?,
+                    estimated_minutes: row.get(9)?,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(task)
     }
@@ -165,25 +186,35 @@ impl Database {
     }
 
     pub fn delete_task(&self, id: i64) -> Result<bool> {
-        let rows = self.conn.execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
+        let rows = self
+            .conn
+            .execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
         Ok(rows > 0)
     }
 
     pub fn clear_completed(&self) -> Result<u64> {
-        let rows = self.conn.execute("DELETE FROM tasks WHERE completed_at IS NOT NULL", [])?;
+        let rows = self
+            .conn
+            .execute("DELETE FROM tasks WHERE completed_at IS NOT NULL", [])?;
         Ok(rows as u64)
     }
 
     pub fn get_config(&self) -> Result<ReminderConfig> {
-        let mut stmt = self.conn.prepare("SELECT value FROM config WHERE key = 'reminder_config'")?;
-        let config = stmt.query_row([], |row| {
-            let value: String = row.get(0)?;
-            serde_json::from_str(&value).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
-        }).optional()?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM config WHERE key = 'reminder_config'")?;
+        let config = stmt
+            .query_row([], |row| {
+                let value: String = row.get(0)?;
+                serde_json::from_str(&value)
+                    .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+            })
+            .optional()?;
 
         Ok(config.unwrap_or_default())
     }
 
+    #[allow(dead_code)]
     pub fn save_config(&self, config: &ReminderConfig) -> Result<()> {
         let value = serde_json::to_string(config)?;
         self.conn.execute(

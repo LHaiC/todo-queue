@@ -17,9 +17,7 @@ pub fn send_reminder(message: &str, config: &ReminderConfig) -> Result<()> {
 
     // Try wall (terminal broadcast)
     if config.use_wall {
-        let _ = Command::new("wall")
-            .arg(message)
-            .status();
+        let _ = Command::new("wall").arg(message).status();
     }
 
     Ok(())
