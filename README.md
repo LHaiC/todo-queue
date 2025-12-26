@@ -9,6 +9,8 @@ An intelligent CLI task management system built with Rust, featuring priority-ba
 - **Smart Reminders**: Integrated with systemd timers for automated notifications
 - **Rich Metadata**: Support for projects, tags, descriptions, and time estimates
 - **Flexible Time Input**: Relative time (`2h`, `1d`, `1w`) and absolute time (`2024-12-31 23:59`)
+- **Task Management**: Add, update, complete, delete, and view tasks
+- **Statistics**: Track task completion and overdue status
 
 ## Installation
 
@@ -38,12 +40,24 @@ todo add "Submit report" --due "2024-12-31 23:59" --project "Project X"
 # List pending tasks
 todo list
 
+# List all tasks (including completed)
+todo list --completed
+
+# List tasks by project
+todo list --project "Project X"
+
 # View next task
 todo next
 
 # Complete task (next or by ID)
 todo done
 todo done 3
+
+# Update a task
+todo update 1 --title "New title"
+todo update 1 --priority high
+todo update 1 --due "1d"
+todo update 1 --title "Updated" --priority critical --due "1d"
 
 # Show task details
 todo show 5
@@ -57,9 +71,31 @@ todo clear
 # View statistics
 todo stats
 
-# List all tasks (including completed)
-todo list --completed
+# Check reminders manually
+todo remind
 ```
+
+## Commands
+
+| Command | Description | Options |
+|---------|-------------|---------|
+| `add` | Add a new task | `--title`, `--description`, `--priority`, `--due`, `--project`, `--tags`, `--estimate` |
+| `list` | List tasks | `--completed`, `--project` |
+| `next` | Show next task | - |
+| `done` | Complete a task | `[ID]` |
+| `update` | Update a task | `[ID]`, `--title`, `--description`, `--priority`, `--due`, `--project`, `--tags`, `--estimate` |
+| `show` | Show task details | `[ID]` |
+| `delete` | Delete a task | `[ID]` |
+| `clear` | Clear completed tasks | - |
+| `stats` | Show statistics | - |
+| `remind` | Check reminders | - |
+
+## Priority Levels
+
+- 🔴 **Critical**: Urgent tasks (highest priority)
+- 🟠 **High**: Important tasks
+- 🟡 **Medium**: Normal tasks (default)
+- 🟢 **Low**: Less important tasks
 
 ## Data Storage
 
@@ -86,3 +122,13 @@ todo-queue/
 ├── install.sh        # Installation script
 └── todo-queue.*      # Systemd service files
 ```
+
+## Documentation
+
+- [README.md](README.md) - This file
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Architecture documentation with Marp slides
+- [TUTORIAL.md](TUTORIAL.md) - Comprehensive Rust tutorial for beginners
+
+## License
+
+MIT

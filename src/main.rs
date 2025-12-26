@@ -73,6 +73,32 @@ enum Commands {
         /// Task ID
         id: i64,
     },
+    /// Update a task
+    Update {
+        /// Task ID
+        id: i64,
+        /// New title
+        #[arg(short, long)]
+        title: Option<String>,
+        /// New description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// New priority
+        #[arg(short, long)]
+        priority: Option<String>,
+        /// New due time
+        #[arg(short, long)]
+        due: Option<String>,
+        /// New project
+        #[arg(short, long)]
+        project: Option<String>,
+        /// New tags (comma separated)
+        #[arg(short, long)]
+        tags: Option<String>,
+        /// New estimated time in minutes
+        #[arg(short, long)]
+        estimate: Option<u32>,
+    },
     /// Check reminders
     Remind,
     /// Show statistics
@@ -112,11 +138,24 @@ fn parse_due_time(s: &str) -> Result<Option<DateTime<Utc>>> {
         return Ok(Some(dt.with_timezone(&Utc)));
     }
 
-    // Try common formats
-    for format in &["%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M"] {
-        if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(s, format) {
-            return Ok(Some(DateTime::from_naive_utc_and_offset(naive, Utc)));
+    // Try date-only format (YYYY-MM-DD)
+    if let Ok(naive_date) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+        // Set time to end of day (23:59:59)
+        if let Some(naive_datetime) = naive_date.and_hms_opt(23, 59, 59) {
+            return Ok(Some(DateTime::from_naive_utc_and_offset(naive_datetime, Utc)));
         }
+    }
+
+    // Try date-time format (YYYY-MM-DD HH:MM)
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M") {
+        return Ok(Some(DateTime::from_naive_utc_and_offset(naive, Utc)));
+    }
+
+    // Try time-only format (HH:MM) - assume today
+    if let Ok(naive_time) = chrono::NaiveTime::parse_from_str(s, "%H:%M") {
+        let today = Utc::now().date_naive();
+        let naive_datetime = today.and_time(naive_time);
+        return Ok(Some(DateTime::from_naive_utc_and_offset(naive_datetime, Utc)));
     }
 
     Err(anyhow::anyhow!("Cannot parse time format: {}", s))
@@ -236,6 +275,51 @@ fn main() -> Result<()> {
                 }
                 if let Some(completed) = task.completed_at {
                     println!("Completed: {}", completed.format("%Y-%m-%d %H:%M:%S"));
+                }
+            } else {
+                println!("{} Task not found", "⚠️".yellow());
+            }
+        }
+
+        Commands::Update {
+            id,
+            title,
+            description,
+            priority,
+            due,
+            project,
+            tags,
+            estimate,
+        } => {
+            if let Some(mut task) = db.get_task(id)? {
+                // Update only provided fields
+                if let Some(new_title) = title {
+                    task.title = new_title;
+                }
+                if let Some(new_description) = description {
+                    task.description = Some(new_description);
+                }
+                if let Some(new_priority) = priority {
+                    task.priority = parse_priority(&new_priority);
+                }
+                if let Some(new_due) = due {
+                    task.due_at = parse_due_time(&new_due)?;
+                }
+                if let Some(new_project) = project {
+                    task.project = Some(new_project);
+                }
+                if let Some(new_tags) = tags {
+                    task.tags = new_tags.split(',').map(|s| s.trim().to_string()).collect();
+                }
+                if let Some(new_estimate) = estimate {
+                    task.estimated_minutes = Some(new_estimate);
+                }
+
+                if db.update_task(id, &task)? {
+                    println!("✅ Task updated (ID: {})", id);
+                    println!("   {}", task.title.bold());
+                } else {
+                    println!("{} Failed to update task", "⚠️".yellow());
                 }
             } else {
                 println!("{} Task not found", "⚠️".yellow());

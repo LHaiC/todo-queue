@@ -199,6 +199,25 @@ impl Database {
         Ok(rows as u64)
     }
 
+    pub fn update_task(&self, id: i64, task: &Task) -> Result<bool> {
+        let rows = self.conn.execute(
+            "UPDATE tasks SET title = ?1, description = ?2, priority = ?3, 
+             due_at = ?4, tags = ?5, project = ?6, estimated_minutes = ?7 
+             WHERE id = ?8",
+            params![
+                task.title,
+                task.description,
+                serde_json::to_string(&task.priority)?,
+                task.due_at.map(|d| d.to_rfc3339()),
+                serde_json::to_string(&task.tags)?,
+                task.project,
+                task.estimated_minutes,
+                id,
+            ],
+        )?;
+        Ok(rows > 0)
+    }
+
     pub fn get_config(&self) -> Result<ReminderConfig> {
         let mut stmt = self
             .conn
