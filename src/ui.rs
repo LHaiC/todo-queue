@@ -10,9 +10,21 @@ pub fn format_task(task: &Task, show_id: bool) -> String {
     };
 
     let priority_icon = task.priority.as_str();
-    let title = task.title.clone();
+    
+    // Add completion status badge
+    let status_badge = if task.is_completed() {
+        "✅".green().to_string()
+    } else {
+        "🔲".dimmed().to_string()
+    };
+    
+    let title = if task.is_completed() {
+        task.title.strikethrough().dimmed()
+    } else {
+        task.title.bold()
+    };
 
-    let mut parts = vec![format!("{}{}{}", id_str, priority_icon, title.bold())];
+    let mut parts = vec![format!("{}{}{} {}", id_str, status_badge, priority_icon, title)];
 
     if let Some(ref desc) = task.description {
         parts.push(format!("   {}", desc.dimmed()));
@@ -48,6 +60,11 @@ pub fn format_task(task: &Task, show_id: bool) -> String {
         parts.push(format!("   ⏱️  Est. {} min", mins));
     }
 
+    // Add completed time if task is done
+    if let Some(completed) = task.completed_at {
+        parts.push(format!("   ✨ Completed: {}", completed.format("%Y-%m-%d %H:%M").to_string().green()));
+    }
+
     parts.join("\n")
 }
 
@@ -71,27 +88,42 @@ fn format_duration(duration: chrono::Duration) -> String {
 
 pub fn print_task_list(tasks: &[Task], title: &str) {
     println!("\n{}", title.bold().underline());
-    println!("{}", "=".repeat(50));
+    println!("{}", "═".repeat(60));
 
     if tasks.is_empty() {
-        println!("{} No tasks", "✨".dimmed());
+        println!("\n  {} No tasks found\n", "✨".dimmed());
     } else {
         for (index, task) in tasks.iter().enumerate() {
             // Display sequential index instead of database ID
             let display_task = format_task_with_index(task, index + 1);
             println!("\n{}", display_task);
-            println!("{}", "─".repeat(40).dimmed());
+            if index < tasks.len() - 1 {
+                println!("{}", "─".repeat(60).dimmed());
+            }
         }
+        println!("\n{}", "═".repeat(60));
+        println!("  Total: {} task{}\n", tasks.len(), if tasks.len() != 1 { "s" } else { "" });
     }
-    println!();
 }
 
 fn format_task_with_index(task: &Task, index: usize) -> String {
     let index_str = format!("[{}] ", index);
     let priority_icon = task.priority.as_str();
-    let title = task.title.clone();
+    
+    // Add completion status badge
+    let status_badge = if task.is_completed() {
+        "✅".green().to_string()
+    } else {
+        "🔲".dimmed().to_string()
+    };
+    
+    let title = if task.is_completed() {
+        task.title.strikethrough().dimmed()
+    } else {
+        task.title.bold()
+    };
 
-    let mut parts = vec![format!("{}{}{}", index_str, priority_icon, title.bold())];
+    let mut parts = vec![format!("{}{}{} {}", index_str, status_badge, priority_icon, title)];
 
     if let Some(ref desc) = task.description {
         parts.push(format!("   {}", desc.dimmed()));
@@ -121,6 +153,11 @@ fn format_task_with_index(task: &Task, index: usize) -> String {
 
     if let Some(mins) = task.estimated_minutes {
         parts.push(format!("   ⏱️  Est. {} min", mins));
+    }
+
+    // Add completed time if task is done
+    if let Some(completed) = task.completed_at {
+        parts.push(format!("   ✨ Completed: {}", completed.format("%Y-%m-%d %H:%M").to_string().green()));
     }
 
     parts.join("\n")

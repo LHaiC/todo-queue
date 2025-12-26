@@ -170,6 +170,11 @@ fn parse_due_time(s: &str) -> Result<Option<DateTime<Utc>>> {
     Err(anyhow::anyhow!("Cannot parse time format: {}", s))
 }
 
+fn is_pure_numeric(s: &str) -> bool {
+    // Check if string contains only digits
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
+}
+
 fn find_task_by_index_or_title(tasks: &[Task], target: &str) -> Option<(usize, i64)> {
     // Try to parse as index first
     if let Ok(index) = target.parse::<usize>() {
@@ -209,6 +214,13 @@ fn main() -> Result<()> {
             tags,
             estimate,
         } => {
+            // Validate title is not pure numeric
+            if is_pure_numeric(&title) {
+                println!("{} Task title cannot be pure numeric!", "⚠️".yellow());
+                println!("   Please use a meaningful name with letters or other characters.");
+                return Ok(());
+            }
+
             // Check for duplicate task title
             let tasks = db.list_tasks(false)?;
             for task in &tasks {

@@ -37,10 +37,16 @@ todo add "Fix critical bug" --priority critical --due "2h"
 # Add a task with due time (absolute)
 todo add "Submit report" --due "2024-12-31 23:59" --project "Project X"
 
+# Add a task with spaces in title (use quotes)
+todo add "Rewrite Something in Rust"
+
 # List pending tasks
 todo list
 
 # List all tasks (including completed)
+todo list --all
+
+# List completed tasks only
 todo list --completed
 
 # List tasks by project
@@ -49,21 +55,25 @@ todo list --project "Project X"
 # View next task
 todo next
 
-# Complete task (next or by ID)
+# Complete task (next, by index, or by title)
 todo done
 todo done 3
+todo done "Fix critical bug"
 
 # Update a task
 todo update 1 --title "New title"
 todo update 1 --priority high
 todo update 1 --due "1d"
 todo update 1 --title "Updated" --priority critical --due "1d"
+todo update "task name" --priority critical
 
 # Show task details
 todo show 5
+todo show "task name"
 
 # Delete a task
 todo delete 2
+todo delete "task name"
 
 # Clear all completed tasks
 todo clear
@@ -82,13 +92,13 @@ todo remind
 
 | Command | Description | Options |
 |---------|-------------|---------|
-| `add` | Add a new task | `--title`, `--description`, `--priority`, `--due`, `--project`, `--tags`, `--estimate` |
-| `list` | List tasks | `--completed`, `--project` |
+| `add` | Add a new task | `title`, `--description`, `--priority`, `--due`, `--project`, `--tags`, `--estimate` |
+| `list` | List tasks | `--completed`, `--all`, `--project` |
 | `next` | Show next task | - |
-| `done` | Complete a task | `[ID]` |
-| `update` | Update a task | `[ID]`, `--title`, `--description`, `--priority`, `--due`, `--project`, `--tags`, `--estimate` |
-| `show` | Show task details | `[ID]` |
-| `delete` | Delete a task | `[ID]` |
+| `done` | Complete a task | `[INDEX_OR_TITLE]` |
+| `update` | Update a task | `[INDEX_OR_TITLE]`, `--title`, `--description`, `--priority`, `--due`, `--project`, `--tags`, `--estimate` |
+| `show` | Show task details | `[INDEX_OR_TITLE]` |
+| `delete` | Delete a task | `[INDEX_OR_TITLE]` |
 | `clear` | Clear completed tasks | - |
 | `reset` | Reset - delete all tasks | - |
 | `stats` | Show statistics | - |
@@ -100,6 +110,11 @@ todo remind
 - 🟠 **High**: Important tasks
 - 🟡 **Medium**: Normal tasks (default)
 - 🟢 **Low**: Less important tasks
+
+## Task Status
+
+- ✅ **Completed**: Task is finished (shown with strikethrough title)
+- 🔲 **Pending**: Task is not yet completed
 
 ## Data Storage
 
@@ -126,13 +141,3 @@ todo-queue/
 ├── install.sh        # Installation script
 └── todo-queue.*      # Systemd service files
 ```
-
-## Documentation
-
-- [README.md](README.md) - This file
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Architecture documentation with Marp slides
-- [TUTORIAL.md](TUTORIAL.md) - Comprehensive Rust tutorial for beginners
-
-## License
-
-MIT
