@@ -52,10 +52,17 @@ pub fn format_task(task: &Task, show_id: bool) -> String {
 }
 
 fn format_duration(duration: chrono::Duration) -> String {
-    let hours = duration.num_hours();
+    let days = duration.num_days();
+    let hours = duration.num_hours() % 24;
     let minutes = duration.num_minutes() % 60;
 
-    if hours > 0 {
+    if days > 0 {
+        if hours > 0 {
+            format!("{}d {}h", days, hours)
+        } else {
+            format!("{}d", days)
+        }
+    } else if hours > 0 {
         format!("{}h {}m", hours, minutes)
     } else {
         format!("{}m", minutes)

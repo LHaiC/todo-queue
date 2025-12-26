@@ -199,6 +199,11 @@ impl Database {
         Ok(rows as u64)
     }
 
+    pub fn reset_all(&self) -> Result<u64> {
+        let rows = self.conn.execute("DELETE FROM tasks", [])?;
+        Ok(rows as u64)
+    }
+
     pub fn update_task(&self, id: i64, task: &Task) -> Result<bool> {
         let rows = self.conn.execute(
             "UPDATE tasks SET title = ?1, description = ?2, priority = ?3, 

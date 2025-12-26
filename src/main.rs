@@ -50,6 +50,9 @@ enum Commands {
         /// Show completed tasks
         #[arg(short, long)]
         completed: bool,
+        /// Show all tasks including completed
+        #[arg(short, long)]
+        all: bool,
         /// Filter by project
         #[arg(short, long)]
         project: Option<String>,
@@ -58,25 +61,31 @@ enum Commands {
     Next,
     /// Complete a task
     Done {
-        /// Task ID, complete next task if not specified
-        id: Option<i64>,
+        /// Task index or title
+        #[arg(value_name = "INDEX_OR_TITLE")]
+        target: Option<String>,
     },
     /// Delete a task
     Delete {
-        /// Task ID
-        id: i64,
+        /// Task index or title
+        #[arg(value_name = "INDEX_OR_TITLE")]
+        target: String,
     },
     /// Clear all completed tasks
     Clear,
     /// Show task details
     Show {
-        /// Task ID
-        id: i64,
+        /// Task index or title
+        #[arg(value_name = "INDEX_OR_TITLE")]
+        target: String,
     },
+    /// Reset - delete all tasks
+    Reset,
     /// Update a task
     Update {
-        /// Task ID
-        id: i64,
+        /// Task index or title
+        #[arg(value_name = "INDEX_OR_TITLE")]
+        target: String,
         /// New title
         #[arg(short, long)]
         title: Option<String>,
@@ -161,6 +170,24 @@ fn parse_due_time(s: &str) -> Result<Option<DateTime<Utc>>> {
     Err(anyhow::anyhow!("Cannot parse time format: {}", s))
 }
 
+fn find_task_by_index_or_title(tasks: &[Task], target: &str) -> Option<(usize, i64)> {
+    // Try to parse as index first
+    if let Ok(index) = target.parse::<usize>() {
+        if index >= 1 && index <= tasks.len() {
+            return Some((index - 1, tasks[index - 1].id));
+        }
+    }
+
+    // Try to find by title
+    for (idx, task) in tasks.iter().enumerate() {
+        if task.title.eq_ignore_ascii_case(target) {
+            return Some((idx, task.id));
+        }
+    }
+
+    None
+}
+
 fn get_db_path() -> PathBuf {
     let mut path = dirs::home_dir().expect("Cannot determine home directory");
     path.push(".todo-queue");
@@ -182,6 +209,16 @@ fn main() -> Result<()> {
             tags,
             estimate,
         } => {
+            // Check for duplicate task title
+            let tasks = db.list_tasks(false)?;
+            for task in &tasks {
+                if task.title.eq_ignore_ascii_case(&title) {
+                    println!("⚠️  Task '{}' already exists!", title);
+                    println!("   Use 'todo update \"{}\"' to modify it", title);
+                    return Ok(());
+                }
+            }
+
             let task = Task {
                 id: 0,
                 title,
@@ -198,12 +235,14 @@ fn main() -> Result<()> {
             };
 
             let id = db.add_task(&task)?;
-            println!("✅ {} Task added (ID: {})", task.priority.as_str(), id);
+            let tasks = db.list_tasks(false)?;
+            let index = tasks.iter().position(|t| t.id == id).map(|i| i + 1).unwrap_or(0);
+            println!("✅ {} Task added (Index: {})", task.priority.as_str(), index);
             println!("   {}", task.title.bold());
         }
 
-        Commands::List { completed, project } => {
-            let mut tasks = db.list_tasks(completed)?;
+        Commands::List { completed, all, project } => {
+            let mut tasks = db.list_tasks(completed || all)?;
 
             if let Some(proj) = project {
                 tasks.retain(|t| t.project.as_deref() == Some(proj.as_str()));
@@ -211,6 +250,8 @@ fn main() -> Result<()> {
 
             if completed {
                 ui::print_task_list(&tasks, "📋 All Tasks");
+            } else if all {
+                ui::print_task_list(&tasks, "📋 All Tasks (Including Completed)");
             } else {
                 ui::print_task_list(&tasks, "📋 Pending Tasks");
             }
@@ -231,9 +272,17 @@ fn main() -> Result<()> {
             }
         }
 
-        Commands::Done { id } => {
-            let task_id = if let Some(id) = id {
-                id
+        Commands::Done { target } => {
+            let tasks = db.list_tasks(false)?;
+            let task_id = if let Some(ref t) = target {
+                if let Some((_, id)) = find_task_by_index_or_title(&tasks, t) {
+                    id
+                } else if let Some(task) = db.get_next_task()? {
+                    task.id
+                } else {
+                    println!("{} No pending tasks", "⚠️".yellow());
+                    return Ok(());
+                }
             } else if let Some(task) = db.get_next_task()? {
                 task.id
             } else {
@@ -251,11 +300,16 @@ fn main() -> Result<()> {
             }
         }
 
-        Commands::Delete { id } => {
-            if db.delete_task(id)? {
-                println!("🗑️  Task deleted (ID: {})", id);
+        Commands::Delete { target } => {
+            let tasks = db.list_tasks(false)?;
+            if let Some((_, task_id)) = find_task_by_index_or_title(&tasks, &target) {
+                if db.delete_task(task_id)? {
+                    println!("🗑️  Task deleted permanently");
+                } else {
+                    println!("{} Failed to delete task", "⚠️".yellow());
+                }
             } else {
-                println!("{} Task not found", "⚠️".yellow());
+                println!("{} Task not found. Use 'todo list' to see valid indices or titles.", "⚠️".yellow());
             }
         }
 
@@ -264,11 +318,42 @@ fn main() -> Result<()> {
             println!("🧹 Cleared {} completed tasks", count);
         }
 
-        Commands::Show { id } => {
-            if let Some(task) = db.get_task(id)? {
+        Commands::Reset => {
+            // Show current task count
+            let tasks = db.list_tasks(true)?;
+            let total = tasks.len();
+            let completed = tasks.iter().filter(|t| t.is_completed()).count();
+            let pending = total - completed;
+
+            println!("\n{}", "⚠️  WARNING: This will delete ALL tasks!".bold().red());
+            println!("{}", "=".repeat(50));
+            println!("Total tasks: {}", total);
+            println!("  - Pending: {}", pending);
+            println!("  - Completed: {}", completed);
+            println!();
+
+            // Ask for confirmation
+            print!("Are you sure you want to delete ALL tasks? (type 'yes' to confirm): ");
+            std::io::Write::flush(&mut std::io::stdout())?;
+
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+
+            if input.trim().to_lowercase() == "yes" {
+                let count = db.reset_all()?;
+                println!("\n✅ Deleted {} tasks from database", count);
+            } else {
+                println!("\n❌ Reset cancelled");
+            }
+        }
+
+        Commands::Show { target } => {
+            let tasks = db.list_tasks(true)?;
+            if let Some((idx, _)) = find_task_by_index_or_title(&tasks, &target) {
+                let task = &tasks[idx];
                 println!("\n{}", "📝 Task Details".bold().underline());
                 println!("{}", "=".repeat(50));
-                println!("\n{}", ui::format_task(&task, true));
+                println!("\n{}", ui::format_task(task, true));
                 println!("\nCreated: {}", task.created_at.format("%Y-%m-%d %H:%M:%S"));
                 if let Some(due) = task.due_at {
                     println!("Due: {}", due.format("%Y-%m-%d %H:%M:%S"));
@@ -277,12 +362,12 @@ fn main() -> Result<()> {
                     println!("Completed: {}", completed.format("%Y-%m-%d %H:%M:%S"));
                 }
             } else {
-                println!("{} Task not found", "⚠️".yellow());
+                println!("{} Task not found. Use 'todo list --all' to see all valid indices or titles.", "⚠️".yellow());
             }
         }
 
         Commands::Update {
-            id,
+            target,
             title,
             description,
             priority,
@@ -291,38 +376,41 @@ fn main() -> Result<()> {
             tags,
             estimate,
         } => {
-            if let Some(mut task) = db.get_task(id)? {
-                // Update only provided fields
-                if let Some(new_title) = title {
-                    task.title = new_title;
-                }
-                if let Some(new_description) = description {
-                    task.description = Some(new_description);
-                }
-                if let Some(new_priority) = priority {
-                    task.priority = parse_priority(&new_priority);
-                }
-                if let Some(new_due) = due {
-                    task.due_at = parse_due_time(&new_due)?;
-                }
-                if let Some(new_project) = project {
-                    task.project = Some(new_project);
-                }
-                if let Some(new_tags) = tags {
-                    task.tags = new_tags.split(',').map(|s| s.trim().to_string()).collect();
-                }
-                if let Some(new_estimate) = estimate {
-                    task.estimated_minutes = Some(new_estimate);
-                }
+            let tasks = db.list_tasks(false)?;
+            if let Some((_, task_id)) = find_task_by_index_or_title(&tasks, &target) {
+                if let Some(mut task) = db.get_task(task_id)? {
+                    // Update only provided fields
+                    if let Some(new_title) = title {
+                        task.title = new_title;
+                    }
+                    if let Some(new_description) = description {
+                        task.description = Some(new_description);
+                    }
+                    if let Some(new_priority) = priority {
+                        task.priority = parse_priority(&new_priority);
+                    }
+                    if let Some(new_due) = due {
+                        task.due_at = parse_due_time(&new_due)?;
+                    }
+                    if let Some(new_project) = project {
+                        task.project = Some(new_project);
+                    }
+                    if let Some(new_tags) = tags {
+                        task.tags = new_tags.split(',').map(|s| s.trim().to_string()).collect();
+                    }
+                    if let Some(new_estimate) = estimate {
+                        task.estimated_minutes = Some(new_estimate);
+                    }
 
-                if db.update_task(id, &task)? {
-                    println!("✅ Task updated (ID: {})", id);
-                    println!("   {}", task.title.bold());
-                } else {
-                    println!("{} Failed to update task", "⚠️".yellow());
+                    if db.update_task(task_id, &task)? {
+                        println!("✅ Task updated");
+                        println!("   {}", task.title.bold());
+                    } else {
+                        println!("{} Failed to update task", "⚠️".yellow());
+                    }
                 }
             } else {
-                println!("{} Task not found", "⚠️".yellow());
+                println!("{} Task not found. Use 'todo list' to see valid indices or titles.", "⚠️".yellow());
             }
         }
 

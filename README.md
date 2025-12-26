@@ -68,6 +68,9 @@ todo delete 2
 # Clear all completed tasks
 todo clear
 
+# Reset - delete all tasks (with confirmation)
+todo reset
+
 # View statistics
 todo stats
 
@@ -87,6 +90,7 @@ todo remind
 | `show` | Show task details | `[ID]` |
 | `delete` | Delete a task | `[ID]` |
 | `clear` | Clear completed tasks | - |
+| `reset` | Reset - delete all tasks | - |
 | `stats` | Show statistics | - |
 | `remind` | Check reminders | - |
 
