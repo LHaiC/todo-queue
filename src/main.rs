@@ -112,6 +112,24 @@ enum Commands {
     Remind,
     /// Show statistics
     Stats,
+    /// Configure reminder settings
+    Config {
+        /// Enable or disable reminders
+        #[arg(short, long)]
+        enabled: Option<bool>,
+        /// Reminder interval in minutes
+        #[arg(short, long)]
+        interval: Option<u32>,
+        /// Enable desktop notifications
+        #[arg(long)]
+        notify: Option<bool>,
+        /// Enable terminal wall messages
+        #[arg(long)]
+        wall: Option<bool>,
+        /// Show current configuration
+        #[arg(short, long)]
+        show: bool,
+    },
 }
 
 fn parse_priority(s: &str) -> Priority {
@@ -429,6 +447,67 @@ fn main() -> Result<()> {
         Commands::Remind => {
             let config = db.get_config()?;
             reminders::check_reminders(&config)?;
+        }
+
+        Commands::Config {
+            enabled,
+            interval,
+            notify,
+            wall,
+            show,
+        } => {
+            let mut config = db.get_config()?;
+            let mut changed = false;
+
+            // Show current configuration
+            if show || (enabled.is_none() && interval.is_none() && notify.is_none() && wall.is_none()) {
+                println!("\n{}", "🔧 Current Reminder Configuration".bold().underline());
+                println!("{}", "═".repeat(50));
+                println!("  Enabled: {}", if config.enabled { "✅ Yes" } else { "❌ No" });
+                println!("  Interval: {} minutes", config.interval_minutes);
+                println!("  Desktop Notifications: {}", if config.use_notify_send { "✅ Yes" } else { "❌ No" });
+                println!("  Terminal Wall Messages: {}", if config.use_wall { "✅ Yes" } else { "❌ No" });
+                println!();
+                println!("To change configuration, use:");
+                println!("  {} --enabled true/false", "todo config".cyan());
+                println!("  {} --interval <minutes>", "todo config".cyan());
+                println!("  {} --notify true/false", "todo config".cyan());
+                println!("  {} --wall true/false", "todo config".cyan());
+                return Ok(());
+            }
+
+            // Update configuration
+            if let Some(e) = enabled {
+                config.enabled = e;
+                changed = true;
+                println!("✅ Reminders {}", if e { "enabled" } else { "disabled" });
+            }
+
+            if let Some(i) = interval {
+                config.interval_minutes = i;
+                changed = true;
+                println!("✅ Reminder interval set to {} minutes", i);
+            }
+
+            if let Some(n) = notify {
+                config.use_notify_send = n;
+                changed = true;
+                println!("✅ Desktop notifications {}", if n { "enabled" } else { "disabled" });
+            }
+
+            if let Some(w) = wall {
+                config.use_wall = w;
+                changed = true;
+                println!("✅ Terminal wall messages {}", if w { "enabled" } else { "disabled" });
+            }
+
+            if changed {
+                db.save_config(&config)?;
+                println!();
+                println!("⚠️  To apply changes, run the following commands:");
+                println!("   1. systemctl --user daemon-reload");
+                println!("   2. systemctl --user restart todo-queue.timer");
+            }
         }
 
         Commands::Stats => {

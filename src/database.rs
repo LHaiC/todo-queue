@@ -238,7 +238,6 @@ impl Database {
         Ok(config.unwrap_or_default())
     }
 
-    #[allow(dead_code)]
     pub fn save_config(&self, config: &ReminderConfig) -> Result<()> {
         let value = serde_json::to_string(config)?;
         self.conn.execute(

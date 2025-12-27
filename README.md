@@ -81,6 +81,13 @@ todo clear
 # Reset - delete all tasks (with confirmation)
 todo reset
 
+# Configure reminder settings
+todo config --show
+todo config --enabled true
+todo config --interval 15
+todo config --notify true
+todo config --wall true
+
 # View statistics
 todo stats
 
@@ -101,6 +108,7 @@ todo remind
 | `delete` | Delete a task | `[INDEX_OR_TITLE]` |
 | `clear` | Clear completed tasks | - |
 | `reset` | Reset - delete all tasks | - |
+| `config` | Configure reminder settings | `--show`, `--enabled`, `--interval`, `--notify`, `--wall` |
 | `stats` | Show statistics | - |
 | `remind` | Check reminders | - |
 
@@ -115,6 +123,52 @@ todo remind
 
 - ✅ **Completed**: Task is finished (shown with strikethrough title)
 - 🔲 **Pending**: Task is not yet completed
+
+## Reminder Configuration
+
+The `todo config` command allows you to customize reminder settings:
+
+```bash
+# View current configuration
+todo config --show
+
+# Enable or disable reminders
+todo config --enabled true
+todo config --enabled false
+
+# Set reminder interval (in minutes)
+todo config --interval 15
+todo config --interval 60
+
+# Enable or disable desktop notifications
+todo config --notify true
+todo config --notify false
+
+# Enable or disable terminal wall messages
+todo config --wall true
+todo config --wall false
+```
+
+**Configuration Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--enabled` | Enable or disable reminders | `true` |
+| `--interval` | Reminder interval in minutes | `30` |
+| `--notify` | Desktop notifications (notify-send) | `true` |
+| `--wall` | Terminal broadcast messages (wall) | `false` |
+
+**Reminder Methods:**
+
+- **Desktop Notifications**: Sends desktop notifications using `notify-send` (requires `libnotify-bin`)
+- **Terminal Wall Messages**: Broadcasts messages to all logged-in users via `wall` command
+
+After changing configuration, run the following commands to apply changes:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart todo-queue.timer
+```
 
 ## Data Storage
 
