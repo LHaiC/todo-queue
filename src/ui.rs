@@ -11,7 +11,7 @@ pub fn format_task(task: &Task, show_id: bool) -> String {
 
     let priority_icon = task.priority.as_str();
     
-    // Add completion status badge
+    // Add completion badge
     let status_badge = if task.is_completed() {
         "✅".green().to_string()
     } else {
@@ -60,7 +60,7 @@ pub fn format_task(task: &Task, show_id: bool) -> String {
         parts.push(format!("   ⏱️  Est. {} min", mins));
     }
 
-    // Add completed time if task is done
+    // Add completion timestamp if task is done
     if let Some(completed) = task.completed_at {
         parts.push(format!("   ✨ Completed: {}", completed.format("%Y-%m-%d %H:%M").to_string().green()));
     }
@@ -94,7 +94,7 @@ pub fn print_task_list(tasks: &[Task], title: &str) {
         println!("\n  {} No tasks found\n", "✨".dimmed());
     } else {
         for (index, task) in tasks.iter().enumerate() {
-            // Display sequential index instead of database ID
+            // Use sequential index instead of database ID
             let display_task = format_task_with_index(task, index + 1);
             println!("\n{}", display_task);
             if index < tasks.len() - 1 {
@@ -110,7 +110,7 @@ fn format_task_with_index(task: &Task, index: usize) -> String {
     let index_str = format!("[{}] ", index);
     let priority_icon = task.priority.as_str();
     
-    // Add completion status badge
+    // Add completion badge
     let status_badge = if task.is_completed() {
         "✅".green().to_string()
     } else {
@@ -155,7 +155,7 @@ fn format_task_with_index(task: &Task, index: usize) -> String {
         parts.push(format!("   ⏱️  Est. {} min", mins));
     }
 
-    // Add completed time if task is done
+    // Add completion timestamp if task is done
     if let Some(completed) = task.completed_at {
         parts.push(format!("   ✨ Completed: {}", completed.format("%Y-%m-%d %H:%M").to_string().green()));
     }

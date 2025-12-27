@@ -227,7 +227,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare("SELECT value FROM config WHERE key = 'reminder_config'")?;
-        let config = stmt
+        let config: Option<ReminderConfig> = stmt
             .query_row([], |row| {
                 let value: String = row.get(0)?;
                 serde_json::from_str(&value)
@@ -235,7 +235,41 @@ impl Database {
             })
             .optional()?;
 
-        Ok(config.unwrap_or_default())
+        // Fill missing fields with default values
+        if config.is_some() {
+            // Check and add missing fields
+            let json_value = self
+                .conn
+                .query_row(
+                    "SELECT value FROM config WHERE key = 'reminder_config'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )?;
+            
+            let mut parsed: serde_json::Value = serde_json::from_str(&json_value)?;
+            
+            // Add missing fields
+            if parsed.get("wall_quiet_start_hour").is_none() {
+                parsed["wall_quiet_start_hour"] = serde_json::Value::Number(18.into());
+            }
+            if parsed.get("wall_quiet_end_hour").is_none() {
+                parsed["wall_quiet_end_hour"] = serde_json::Value::Number(9.into());
+            }
+            if parsed.get("start_from_quiet_end").is_none() {
+                parsed["start_from_quiet_end"] = serde_json::Value::Bool(false);
+            }
+            
+            // Save updated config
+            let updated_value = serde_json::to_string(&parsed)?;
+            self.conn.execute(
+                "UPDATE config SET value = ?1 WHERE key = 'reminder_config'",
+                params![updated_value],
+            )?;
+            
+            Ok(serde_json::from_value(parsed)?)
+        } else {
+            Ok(ReminderConfig::default())
+        }
     }
 
     pub fn save_config(&self, config: &ReminderConfig) -> Result<()> {

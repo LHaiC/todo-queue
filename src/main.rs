@@ -117,15 +117,24 @@ enum Commands {
         /// Enable or disable reminders
         #[arg(short, long)]
         enabled: Option<bool>,
-        /// Reminder interval in minutes
+        /// Reminder interval (e.g., "2h", "30m", or just "60" for minutes)
         #[arg(short, long)]
-        interval: Option<u32>,
+        interval: Option<String>,
         /// Enable desktop notifications
         #[arg(long)]
         notify: Option<bool>,
         /// Enable terminal wall messages
         #[arg(long)]
         wall: Option<bool>,
+        /// Wall quiet hours start (0-23)
+        #[arg(long)]
+        wall_quiet_start: Option<u32>,
+        /// Wall quiet hours end (0-23)
+        #[arg(long)]
+        wall_quiet_end: Option<u32>,
+        /// Start reminders from quiet-end time
+        #[arg(long)]
+        start_from_quiet_end: Option<bool>,
         /// Show current configuration
         #[arg(short, long)]
         show: bool,
@@ -141,12 +150,31 @@ fn parse_priority(s: &str) -> Priority {
     }
 }
 
+fn parse_interval(s: &str) -> Result<u32> {
+    let s = s.trim().to_lowercase();
+    
+    if s.ends_with('h') {
+        let hours: u32 = s.trim_end_matches('h').parse()
+            .map_err(|_| anyhow::anyhow!("Invalid hours format"))?;
+        Ok(hours * 60)
+    } else if s.ends_with('m') {
+        let minutes: u32 = s.trim_end_matches('m').parse()
+            .map_err(|_| anyhow::anyhow!("Invalid minutes format"))?;
+        Ok(minutes)
+    } else {
+        // Assume minutes if no suffix
+        let minutes: u32 = s.parse()
+            .map_err(|_| anyhow::anyhow!("Invalid interval format. Use '2h' for hours or '30m' for minutes"))?;
+        Ok(minutes)
+    }
+}
+
 fn parse_due_time(s: &str) -> Result<Option<DateTime<Utc>>> {
     if s.is_empty() {
         return Ok(None);
     }
 
-    // Try relative time first
+    // Parse relative time first
     if s.ends_with('h') {
         let hours: i64 = s.trim_end_matches('h').parse()?;
         return Ok(Some(Utc::now() + Duration::hours(hours)));
@@ -160,12 +188,12 @@ fn parse_due_time(s: &str) -> Result<Option<DateTime<Utc>>> {
         return Ok(Some(Utc::now() + Duration::weeks(weeks)));
     }
 
-    // Try absolute time
+    // Parse absolute time
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
         return Ok(Some(dt.with_timezone(&Utc)));
     }
 
-    // Try date-only format (YYYY-MM-DD)
+    // Parse date-only format (YYYY-MM-DD)
     if let Ok(naive_date) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
         // Set time to end of day (23:59:59)
         if let Some(naive_datetime) = naive_date.and_hms_opt(23, 59, 59) {
@@ -173,12 +201,12 @@ fn parse_due_time(s: &str) -> Result<Option<DateTime<Utc>>> {
         }
     }
 
-    // Try date-time format (YYYY-MM-DD HH:MM)
+    // Parse date-time format (YYYY-MM-DD HH:MM)
     if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M") {
         return Ok(Some(DateTime::from_naive_utc_and_offset(naive, Utc)));
     }
 
-    // Try time-only format (HH:MM) - assume today
+    // Parse time-only format (HH:MM) - assume today
     if let Ok(naive_time) = chrono::NaiveTime::parse_from_str(s, "%H:%M") {
         let today = Utc::now().date_naive();
         let naive_datetime = today.and_time(naive_time);
@@ -189,19 +217,19 @@ fn parse_due_time(s: &str) -> Result<Option<DateTime<Utc>>> {
 }
 
 fn is_pure_numeric(s: &str) -> bool {
-    // Check if string contains only digits
+    // Validate string is numeric only
     !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
 }
 
 fn find_task_by_index_or_title(tasks: &[Task], target: &str) -> Option<(usize, i64)> {
-    // Try to parse as index first
+    // Parse as index first
     if let Ok(index) = target.parse::<usize>() {
         if index >= 1 && index <= tasks.len() {
             return Some((index - 1, tasks[index - 1].id));
         }
     }
 
-    // Try to find by title
+    // Search by title
     for (idx, task) in tasks.iter().enumerate() {
         if task.title.eq_ignore_ascii_case(target) {
             return Some((idx, task.id));
@@ -232,14 +260,14 @@ fn main() -> Result<()> {
             tags,
             estimate,
         } => {
-            // Validate title is not pure numeric
+            // Check title is not numeric only
             if is_pure_numeric(&title) {
                 println!("{} Task title cannot be pure numeric!", "⚠️".yellow());
                 println!("   Please use a meaningful name with letters or other characters.");
                 return Ok(());
             }
 
-            // Check for duplicate task title
+            // Check duplicate task title
             let tasks = db.list_tasks(false)?;
             for task in &tasks {
                 if task.title.eq_ignore_ascii_case(&title) {
@@ -349,7 +377,7 @@ fn main() -> Result<()> {
         }
 
         Commands::Reset => {
-            // Show current task count
+            // Display current task count
             let tasks = db.list_tasks(true)?;
             let total = tasks.len();
             let completed = tasks.iter().filter(|t| t.is_completed()).count();
@@ -454,25 +482,49 @@ fn main() -> Result<()> {
             interval,
             notify,
             wall,
+            wall_quiet_start,
+            wall_quiet_end,
+            start_from_quiet_end,
             show,
         } => {
             let mut config = db.get_config()?;
             let mut changed = false;
 
             // Show current configuration
-            if show || (enabled.is_none() && interval.is_none() && notify.is_none() && wall.is_none()) {
+            if show || (enabled.is_none() && interval.is_none() && notify.is_none() && wall.is_none() && wall_quiet_start.is_none() && wall_quiet_end.is_none() && start_from_quiet_end.is_none()) {
                 println!("\n{}", "🔧 Current Reminder Configuration".bold().underline());
                 println!("{}", "═".repeat(50));
                 println!("  Enabled: {}", if config.enabled { "✅ Yes" } else { "❌ No" });
-                println!("  Interval: {} minutes", config.interval_minutes);
+                
+                // Format interval
+                let hours = config.interval_minutes / 60;
+                let mins = config.interval_minutes % 60;
+                if hours > 0 && mins > 0 {
+                    println!("  Interval: {}h {}m", hours, mins);
+                } else if hours > 0 {
+                    println!("  Interval: {}h", hours);
+                } else {
+                    println!("  Interval: {}m", mins);
+                }
+                
                 println!("  Desktop Notifications: {}", if config.use_notify_send { "✅ Yes" } else { "❌ No" });
                 println!("  Terminal Wall Messages: {}", if config.use_wall { "✅ Yes" } else { "❌ No" });
+                if config.use_wall {
+                    println!("  Wall Quiet Hours: {}:00 - {}:00 (no wall messages)", 
+                             config.wall_quiet_start_hour, config.wall_quiet_end_hour);
+                    if config.start_from_quiet_end {
+                        println!("  Start Time: Reminders start from quiet-end time");
+                    }
+                }
                 println!();
                 println!("To change configuration, use:");
                 println!("  {} --enabled true/false", "todo config".cyan());
-                println!("  {} --interval <minutes>", "todo config".cyan());
+                println!("  {} --interval <time> (e.g., '2h', '30m', '60')", "todo config".cyan());
                 println!("  {} --notify true/false", "todo config".cyan());
                 println!("  {} --wall true/false", "todo config".cyan());
+                println!("  {} --wall-quiet-start <hour> (0-23)", "todo config".cyan());
+                println!("  {} --wall-quiet-end <hour> (0-23)", "todo config".cyan());
+                println!("  {} --start-from-quiet-end true/false", "todo config".cyan());
                 return Ok(());
             }
 
@@ -484,9 +536,19 @@ fn main() -> Result<()> {
             }
 
             if let Some(i) = interval {
-                config.interval_minutes = i;
+                config.interval_minutes = parse_interval(&i)?;
                 changed = true;
-                println!("✅ Reminder interval set to {} minutes", i);
+                
+                // Format for display
+                let hours = config.interval_minutes / 60;
+                let mins = config.interval_minutes % 60;
+                if hours > 0 && mins > 0 {
+                    println!("✅ Reminder interval set to {}h {}m", hours, mins);
+                } else if hours > 0 {
+                    println!("✅ Reminder interval set to {}h", hours);
+                } else {
+                    println!("✅ Reminder interval set to {}m", mins);
+                }
             }
 
             if let Some(n) = notify {
@@ -499,6 +561,28 @@ fn main() -> Result<()> {
                 config.use_wall = w;
                 changed = true;
                 println!("✅ Terminal wall messages {}", if w { "enabled" } else { "disabled" });
+            }
+
+            if let Some(start) = wall_quiet_start {
+                config.wall_quiet_start_hour = start.min(23);
+                changed = true;
+                println!("✅ Wall quiet start hour set to {}:00", start);
+            }
+
+            if let Some(end) = wall_quiet_end {
+                config.wall_quiet_end_hour = end.min(23);
+                changed = true;
+                println!("✅ Wall quiet end hour set to {}:00", end);
+            }
+
+            if let Some(s) = start_from_quiet_end {
+                config.start_from_quiet_end = s;
+                changed = true;
+                if s {
+                    println!("✅ Reminders will start from quiet-end time");
+                } else {
+                    println!("✅ Reminders will use fixed interval");
+                }
             }
 
             if changed {
